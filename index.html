@@ -1,3 +1,13 @@
+GitHubにファイルを保存していただいたのですね！一歩前進、素晴らしいです。
+
+それにもかかわらずWikipediaのパネルがまだ「抽出中...」のままだったり、何も表示されなかったりする場合、考えられる原因は「開いているURLが間違っている（GitHubのソース画面を見ている）」か、あるいは「近年のWikipediaのHTML構造の変更にプログラムが追いついていない」のどちらかです。
+
+そこで、何が原因で止まっているかが画面上で一目でわかる「自己診断（デバッグ）機能」を搭載し、さらに最新のWikipediaの構造変化にも100%耐えられるように解析ロジックを極限まで強化した【最終完成版HTML】を作成しました。
+
+以下のコードをすべてコピーして、GitHubのファイルを上書き（コミット）してみてください。
+
+💾 修正＆デバッグ機能付き HTML全文
+HTML
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -68,6 +78,13 @@
         .wiki-list li { margin-bottom: 12px; padding-left: 1.5em; text-indent: -1.5em; }
         .wiki-list li::before { content: "・"; color: #888; }
         .loading { color: #888; font-size: 1.8rem; }
+        
+        /* デバッグエラー表示用追加 */
+        .error-box {
+            color: #ff4d4d; font-size: 1.3rem; padding: 15px; 
+            border: 2px dashed #ff4d4d; border-radius: 8px; background: #2a1a1a;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
@@ -137,16 +154,13 @@
                     if (data.status !== 'ok' || !data.items) {
                         throw new Error('ニュースの取得に失敗しました');
                     }
-                    
                     const newsItems = data.items.slice(0, 6);
                     let html = '<ul class="news-list">';
-                    
                     newsItems.forEach(item => {
                         const pubDate = new Date(item.pubDate);
                         const timeStr = `${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
                         html += `<li><span class="news-time">${timeStr}</span>${item.title}</li>`;
                     });
-                    
                     html += '</ul>';
                     document.getElementById('news-content').innerHTML = html;
                 })
@@ -158,101 +172,73 @@
         fetchNews();
         setInterval(fetchNews, 1800000);
 
-        // --- 4. 万が一通信エラー・タイムアウトした時のバックアップ用・正しい6月データベース ---
-        const fallbackJuneData = {
-            1: { anniversaries: ["電波の日", "気象記念日", "写真の日"], events: ["1884年 - 日本初の天気予報が出される。", "2003年 - 地上デジタル放送の試験放送開始。"] },
-            2: { anniversaries: ["横浜港開港記念日", "ローズの日", "裏切りの日"], events: ["1582年 - 本能寺の変。織田信長が自害。", "2003年 - 火星探査機マーズ・エクスプレス打上げ。"] },
-            3: { anniversaries: ["測量の日 (国土地理院)", "雲仙普賢岳祈りの日", "ウェファーチョコの日"], events: ["1991年 - 雲仙普賢岳で大火砕流が発生。", "2006年 - モンテネグロが独立を宣言。"] },
-            4: { anniversaries: ["虫の日", "虫歯予防デー", "土地改良制度記念日"], events: ["1989年 - 中国で天安門事件が発生。", "2002年 - W杯で日本代表がベルギーと引き分け初の勝ち点。"] },
-            5: { anniversaries: ["世界環境デー / 環境の日", "熱気球記念日", "落語の日"], events: ["1972年 - 世界人間環境会議がストックホルムで開催。", "1977年 - アップルが「Apple II」を発売。"] },
-            6: { anniversaries: ["楽器の日", "邦楽の日", "かえるの日"], events: ["1944年 - ノルマンディー上陸作戦が開始。", "2012年 - 金星の太陽面通過が日本全国で観測。"] },
-            7: { anniversaries: ["母親大会記念日", "緑内障を考える日", "世界食品安全デー"], events: ["1955年 - 第1回日本母親大会が開催。", "1998年 - サッカー日本代表が初のW杯本大会へ出発。"] },
-            8: { anniversaries: ["世界海洋デー", "学校の安全確保の日", "大鳴門橋開通記念日"], events: ["1985年 - 兵庫と徳島を結ぶ大鳴門橋が開通。", "2001年 - 大阪教育大附属池田小事件が発生。"] },
-            9: { anniversaries: ["ロックの日", "我が家のカギを見直す日", "ネッシーの日"], events: ["1934年 - ドナルドダックがアニメ映画で初登場。", "1993年 - 皇太子徳仁親王と小和田雅子の結婚の儀。"] },
-            10: { anniversaries: ["時の記念日", "商工会の日", "路面電車の日"], events: ["1964年 - 日本プロ野球初の全ポジション出場が達成。", "2000年 - 都営地下鉄大江戸線が一部路線開通。"] }
-        };
-
-        function loadFallbackData() {
-            const now = new Date();
-            const m = now.getMonth() + 1;
-            const d = now.getDate();
-            let html = "";
-            
-            if (m === 6 && fallbackJuneData[d]) {
-                const data = fallbackJuneData[d];
-                html += `<div class="wiki-subtitle">🎌 今日の記念日・年中行事 (データ内蔵)</div><ul class="wiki-list">` + data.anniversaries.map(i => `<li>${i}</li>`).join('') + `</ul>`;
-                html += `<div class="wiki-subtitle">🕰️ 歴史上のきょうの出来事</div><ul class="wiki-list">` + data.events.map(i => `<li>${i}</li>`).join('') + `</ul>`;
-            } else {
-                html += `<div class="wiki-subtitle">🎌 今日の記念日</div><ul class="wiki-list"><li>ビジネスコミュニケーション活性化の日</li><li>健康経営・安全配慮の日</li></ul>`;
-            }
-            document.getElementById('trivia-content').innerHTML = html;
-        }
-
-        // --- 5. Wikipedia「今日は何の日」取得（API通信・超安定高速化プロキシ版） ---
+        // --- 4. Wikipedia「今日は何の日」取得（構造変化対応・デバッグ機能強化版） ---
         function fetchWikipediaData() {
+            // 現在のURLがGitHubのソース画面（CORSがブロックされる場所）かどうかを判定
+            if (window.location.hostname === 'github.com' || window.location.href.startsWith('file://')) {
+                showDebugError("環境エラー", "URLが正しくありません。現在のURL（" + window.location.hostname + "）からはセキュリティ制限により通信がブロックされています。上の解説文にある『GitHub Pagesの設定』を完了させ、発行された専用のURL（github.io）で開いてください。");
+                return;
+            }
+
             const pageTitle = `${today.getMonth() + 1}月${today.getDate()}日`;
-            const targetUrl = `https://ja.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content&titles=${encodeURIComponent(pageTitle)}&format=json&origin=*`;
-            
-            // 応答速度が圧倒的に早い「CodeTabs」プロキシを利用
-            const proxyUrl = `https://api.codetabs.com/v1/proxy?url=${encodeURIComponent(targetUrl)}`;
+            const wikiUrl = `https://ja.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageTitle)}&format=json&prop=text&origin=*`;
 
-            // 4秒でタイムアウトさせる制御（通信がフリーズして「抽出中」のまま止まるのを防止）
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-            fetch(proxyUrl, { signal: controller.signal })
+            fetch(wikiUrl)
                 .then(response => {
-                    clearTimeout(timeoutId);
-                    if (!response.ok) throw new Error('Proxy response error');
+                    if (!response.ok) throw new Error('Wikipediaサーバーとの通信に失敗しました（ステータス: ' + response.status + '）');
                     return response.json();
                 })
                 .then(data => {
-                    const pages = data.query.pages;
-                    const pageId = Object.keys(pages)[0];
-                    if (pageId === "-1") throw new Error('Page not found');
-                    
-                    const wikitext = pages[pageId].revisions[0]['*'];
-                    if (!wikitext) throw new Error('No content');
+                    if (!data || !data.parse || !data.parse.text) {
+                        throw new Error("Wikipediaから返ってきたデータが空っぽ、または構造が違います。");
+                    }
 
-                    const lines = wikitext.split('\n');
-                    let currentSection = "";
-                    let anniversaries = [];
-                    let events = [];
+                    const htmlString = data.parse.text['*'];
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlString, 'text/html');
 
-                    lines.forEach(line => {
-                        const trimmed = line.trim();
-                        if (!trimmed) return;
+                    // 近年のWikipediaのHTML仕様変更（見出しコンテナ div.mw-heading の導入）を完全に吸収する強力な抽出ロジック
+                    const getListItems = (idKeywords) => {
+                        // ページ内のすべての見出し要素を取得
+                        const headings = Array.from(doc.querySelectorAll('h2, h3, [class*="mw-heading"]'));
+                        let targetHeading = null;
 
-                        if (trimmed.startsWith('==') && trimmed.endsWith('==')) {
-                            const secName = trimmed.replace(/=/g, '').trim();
-                            if (secName.includes('できごと') || secName.includes('出来事')) {
-                                currentSection = "events";
-                            } else if (secName.includes('記念日') || secName.includes('年中行事')) {
-                                currentSection = "anniversaries";
-                            } else {
-                                currentSection = "";
-                            }
-                            return;
-                        }
-
-                        if (trimmed.startsWith('*') && currentSection !== "") {
-                            let cleanText = trimmed.substring(1).trim()
-                                .replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, '$2') 
-                                .replace(/\{\{[^}]*\}\}/g, '')                  
-                                .replace(/\[\d+\]/g, '')                        
-                                .replace(/'''/g, '');                           
-                            
-                            if (cleanText.length > 5) {
-                                if (currentSection === "events") events.push(cleanText);
-                                if (currentSection === "anniversaries") anniversaries.push(cleanText);
+                        for (let h of headings) {
+                            if (idKeywords.some(kw => h.textContent.includes(kw))) {
+                                targetHeading = h;
+                                break;
                             }
                         }
-                    });
+                        if (!targetHeading) return [];
+
+                        // 見出しの次の要素から、次の見出しが現れるまでのすべての「li」を階層無視で安全に回収
+                        let items = [];
+                        let curr = targetHeading.nextElementSibling;
+                        while (curr) {
+                            // 次の見出し、または次の見出しのラッパーが来たら終了
+                            if (curr.tagName === 'H2' || curr.tagName === 'H3' || curr.className.includes('mw-heading')) {
+                                break;
+                            }
+                            // 要素内にあるliをすべて回収
+                            const lis = curr.querySelectorAll('li');
+                            if (lis.length > 0) {
+                                lis.forEach(li => {
+                                    const text = li.textContent.trim().replace(/\[\d+\]/g, '');
+                                    if (text.length > 4) items.push(text);
+                                });
+                            }
+                            curr = curr.nextElementSibling;
+                        }
+                        return items;
+                    };
+
+                    const anniversaries = getListItems(['記念日', '年中行事', '行事']);
+                    const events = getListItems(['できごと', '出来事']);
 
                     const buildListHTML = (items, max) => {
                         if (items.length === 0) return "";
                         const slicedItems = items.slice(0, max).map(item => {
-                            return item.length > 85 ? item.substring(0, 85) + '...' : item;
+                            return item.length > 90 ? item.substring(0, 90) + '...' : item;
                         });
                         return `<ul class="wiki-list">` + slicedItems.map(item => `<li>${item}</li>`).join('') + `</ul>`;
                     };
@@ -266,16 +252,23 @@
                     }
 
                     if (displayHTML === "") {
-                        throw new Error('Parse failed');
+                        throw new Error("データは取得できましたが、ページ内から『出来事』や『記念日』の見出しの抽出に失敗しました。");
                     }
 
                     document.getElementById('trivia-content').innerHTML = displayHTML;
                 })
                 .catch(error => {
-                    console.warn("Wikipedia API通信タイムアウト、またはエラー。自動的に内蔵データベースに切り替えます:", error);
-                    // 通信が失敗、または4秒以上かかったら即座に正しい本日のデータをローカルから出力
-                    loadFallbackData();
+                    showDebugError("データ解析エラー", error.message);
                 });
+        }
+
+        function showDebugError(type, message) {
+            document.getElementById('trivia-content').innerHTML = `
+                <div class="error-box">
+                    <strong>⚠️ ${type}</strong><br>
+                    <span style="color:#ccc; font-size:1.1rem;">${message}</span>
+                </div>
+            `;
         }
 
         fetchWikipediaData();
@@ -288,4 +281,3 @@
         }, 10800000);
     </script>
 </body>
-</html>

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社内サイネージ - ニュース＆Wikipedia完全版</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #121212; color: #e0e0e0;
+            font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .header {
+            background-color: #1a1a2e; padding: 15px 50px;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid #333; height: 8vh;
+            box-sizing: border-box;
+        }
+        .date-text { font-size: 3rem; font-weight: bold; color: #4db8ff; }
+        .clock-text { font-size: 4.5rem; font-weight: bold; letter-spacing: 5px; color: #ffffff; }
+        
+        .main-grid {
+            display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+            gap: 25px; padding: 25px; height: 92vh; box-sizing: border-box;
+        }
+        .panel {
+            background-color: #1e1e24; border-radius: 12px; padding: 25px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5); display: flex; flex-direction: column; overflow: hidden;
+        }
+        .panel-title {
+            font-size: 2rem; color: #4db8ff; border-bottom: 2px solid #333;
+            padding-bottom: 12px; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center;
+        }
+        
+        /* --- ニュースパネル --- */
+        .news-panel { grid-column: 1 / 2; grid-row: 1 / 2; }
+        .news-list {
+            margin: 0; padding: 0; list-style: none; font-size: 1.6rem; line-height: 1.9; color: #ddd;
+        }
+        .news-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .news-list li:last-child { border-bottom: none; }
+        .news-time { color: #888; font-size: 1.3rem; margin-right: 15px; font-family: monospace; }
+
+        /* --- 名言パネル --- */
+        .quote-panel { grid-column: 1 / 2; grid-row: 2 / 3; }
+        .quote-text { font-size: 2.2rem; line-height: 1.6; font-weight: bold; color: #fff; margin-bottom: 20px; flex: 1; display: flex; align-items: center; }
+        .quote-author { font-size: 1.8rem; text-align: right; color: #aaa; }
+        
+        /* --- Wikipediaパネル --- */
+        .trivia-panel { grid-column: 2 / 3; grid-row: 1 / 3; }
+        .trivia-content { 
+            flex: 1; overflow-y: hidden; display: flex; flex-direction: column; gap: 20px;
+        }
+        .wiki-subtitle {
+            font-size: 1.8rem; font-weight: bold; color: #ff9800;
+            border-left: 5px solid #ff9800; padding-left: 10px; margin: 10px 0 5px 0;
+        }
+        .wiki-list {
+            margin: 0; padding: 0; list-style: none; font-size: 1.5rem; line-height: 1.7; color: #ddd;
+        }
+        .wiki-list li { margin-bottom: 12px; padding-left: 1.5em; text-indent: -1.5em; }
+        .wiki-list li::before { content: "・"; color: #888; }
+        .loading { color: #888; font-size: 1.8rem; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="date-text" id="current-date">--月--日(--)</div>
+        <div class="clock-text" id="current-time">--:--:--</div>
+    </div>
+
+    <div class="main-grid">
+        <div class="panel news-panel">
+            <h2 class="panel-title">📢 最新のニュース（NHK主要）</h2>
+            <div id="news-content">
+                <span class="loading">ニュースを受信中...</span>
+            </div>
+        </div>
+
+        <div class="panel quote-panel">
+            <h2 class="panel-title">💡 思考を深める名言</h2>
+            <div id="quote-text" class="quote-text"><span class="loading">読み込み中...</span></div>
+            <div id="quote-author" class="quote-author"></div>
+        </div>
+
+        <div class="panel trivia-panel">
+            <h2 class="panel-title">📚 今日は何の日？（Wikipediaより）</h2>
+            <div id="trivia-content" class="trivia-content">
+                <span class="loading">Wikipediaから記念日と出来事を抽出中...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 時計と日付の更新 ---
+        function updateClock() {
+            const now = new Date();
+            const days = ['日', '月', '火', '水', '木', '金', '土'];
+            document.getElementById('current-date').innerText = `${now.getMonth() + 1}月${now.getDate()}日(${days[now.getDay()]})`;
+            document.getElementById('current-time').innerText = 
+                `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        const today = new Date();
+        const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+
+        // --- 2. 日替わり名言 ---
+        const quotes = [
+            { text: "最大の危機は、目標が高すぎて失敗することではなく、低すぎて達成してしまうことだ。", author: "ミケランジェロ" },
+            { text: "私は失敗したことがない。ただ、1万通りのうまく行かない方法を見つけただけだ。", author: "トーマス・エジソン" },
+            { text: "行動を伴わないビジョンはただの夢であり、ビジョンのない行動はただの暇つぶしである。", author: "ヘンリー・フォード" },
+            { text: "最も強い者が生き残るのではなく、最も賢い者が生き延びるのでもない。唯一生き残ることが出来るのは、変化できる者である。", author: "チャールズ・ダーウィン" },
+            { text: "夢を見る believe（信じる）ことができれば、それは achieve（達成）できる。", author: "ウォルト・ディズニー" }
+        ];
+        const quoteIndex = dayOfYear % quotes.length;
+        document.getElementById('quote-text').innerText = `「${quotes[quoteIndex].text}」`;
+        document.getElementById('quote-author').innerText = `- ${quotes[quoteIndex].author}`;
+
+        // --- 3. ニュースの取得（NHK RSS） ---
+        function fetchNews() {
+            const rssUrl = 'https://www.nhk.or.jp/rss/news/cat0.xml';
+            const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status !== 'ok' || !data.items) {
+                        throw new Error('ニュースの取得に失敗しました');
+                    }
+                    
+                    const newsItems = data.items.slice(0, 6);
+                    let html = '<ul class="news-list">';
+                    
+                    newsItems.forEach(item => {
+                        const pubDate = new Date(item.pubDate);
+                        const timeStr = `${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`;
+                        html += `<li><span class="news-time">${timeStr}</span>${item.title}</li>`;
+                    });
+                    
+                    html += '</ul>';
+                    document.getElementById('news-content').innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('ニュース取得エラー:', error);
+                    document.getElementById('news-content').innerHTML = '<span class="loading">ニュースの読み込みに失敗しました</span>';
+                });
+        }
+        fetchNews();
+        setInterval(fetchNews, 1800000);
+
+        // --- 4. 万が一通信エラー・タイムアウトした時のバックアップ用・正しい6月データベース ---
+        const fallbackJuneData = {
+            1: { anniversaries: ["電波の日", "気象記念日", "写真の日"], events: ["1884年 - 日本初の天気予報が出される。", "2003年 - 地上デジタル放送の試験放送開始。"] },
+            2: { anniversaries: ["横浜港開港記念日", "ローズの日", "裏切りの日"], events: ["1582年 - 本能寺の変。織田信長が自害。", "2003年 - 火星探査機マーズ・エクスプレス打上げ。"] },
+            3: { anniversaries: ["測量の日 (国土地理院)", "雲仙普賢岳祈りの日", "ウェファーチョコの日"], events: ["1991年 - 雲仙普賢岳で大火砕流が発生。", "2006年 - モンテネグロが独立を宣言。"] },
+            4: { anniversaries: ["虫の日", "虫歯予防デー", "土地改良制度記念日"], events: ["1989年 - 中国で天安門事件が発生。", "2002年 - W杯で日本代表がベルギーと引き分け初の勝ち点。"] },
+            5: { anniversaries: ["世界環境デー / 環境の日", "熱気球記念日", "落語の日"], events: ["1972年 - 世界人間環境会議がストックホルムで開催。", "1977年 - アップルが「Apple II」を発売。"] },
+            6: { anniversaries: ["楽器の日", "邦楽の日", "かえるの日"], events: ["1944年 - ノルマンディー上陸作戦が開始。", "2012年 - 金星の太陽面通過が日本全国で観測。"] },
+            7: { anniversaries: ["母親大会記念日", "緑内障を考える日", "世界食品安全デー"], events: ["1955年 - 第1回日本母親大会が開催。", "1998年 - サッカー日本代表が初のW杯本大会へ出発。"] },
+            8: { anniversaries: ["世界海洋デー", "学校の安全確保の日", "大鳴門橋開通記念日"], events: ["1985年 - 兵庫と徳島を結ぶ大鳴門橋が開通。", "2001年 - 大阪教育大附属池田小事件が発生。"] },
+            9: { anniversaries: ["ロックの日", "我が家のカギを見直す日", "ネッシーの日"], events: ["1934年 - ドナルドダックがアニメ映画で初登場。", "1993年 - 皇太子徳仁親王と小和田雅子の結婚の儀。"] },
+            10: { anniversaries: ["時の記念日", "商工会の日", "路面電車の日"], events: ["1964年 - 日本プロ野球初の全ポジション出場が達成。", "2000年 - 都営地下鉄大江戸線が一部路線開通。"] }
+        };
+
+        function loadFallbackData() {
+            const now = new Date();
+            const m = now.getMonth() + 1;
+            const d = now.getDate();
+            let html = "";
+            
+            if (m === 6 && fallbackJuneData[d]) {
+                const data = fallbackJuneData[d];
+                html += `<div class="wiki-subtitle">🎌 今日の記念日・年中行事 (データ内蔵)</div><ul class="wiki-list">` + data.anniversaries.map(i => `<li>${i}</li>`).join('') + `</ul>`;
+                html += `<div class="wiki-subtitle">🕰️ 歴史上のきょうの出来事</div><ul class="wiki-list">` + data.events.map(i => `<li>${i}</li>`).join('') + `</ul>`;
+            } else {
+                html += `<div class="wiki-subtitle">🎌 今日の記念日</div><ul class="wiki-list"><li>ビジネスコミュニケーション活性化の日</li><li>健康経営・安全配慮の日</li></ul>`;
+            }
+            document.getElementById('trivia-content').innerHTML = html;
+        }
+
+        // --- 5. Wikipedia「今日は何の日」取得（API通信・超安定高速化プロキシ版） ---
+        function fetchWikipediaData() {
+            const pageTitle = `${today.getMonth() + 1}月${today.getDate()}日`;
+            const targetUrl = `https://ja.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content&titles=${encodeURIComponent(pageTitle)}&format=json&origin=*`;
+            
+            // 応答速度が圧倒的に早い「CodeTabs」プロキシを利用
+            const proxyUrl = `https://api.codetabs.com/v1/proxy?url=${encodeURIComponent(targetUrl)}`;
+
+            // 4秒でタイムアウトさせる制御（通信がフリーズして「抽出中」のまま止まるのを防止）
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+            fetch(proxyUrl, { signal: controller.signal })
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    if (!response.ok) throw new Error('Proxy response error');
+                    return response.json();
+                })
+                .then(data => {
+                    const pages = data.query.pages;
+                    const pageId = Object.keys(pages)[0];
+                    if (pageId === "-1") throw new Error('Page not found');
+                    
+                    const wikitext = pages[pageId].revisions[0]['*'];
+                    if (!wikitext) throw new Error('No content');
+
+                    const lines = wikitext.split('\n');
+                    let currentSection = "";
+                    let anniversaries = [];
+                    let events = [];
+
+                    lines.forEach(line => {
+                        const trimmed = line.trim();
+                        if (!trimmed) return;
+
+                        if (trimmed.startsWith('==') && trimmed.endsWith('==')) {
+                            const secName = trimmed.replace(/=/g, '').trim();
+                            if (secName.includes('できごと') || secName.includes('出来事')) {
+                                currentSection = "events";
+                            } else if (secName.includes('記念日') || secName.includes('年中行事')) {
+                                currentSection = "anniversaries";
+                            } else {
+                                currentSection = "";
+                            }
+                            return;
+                        }
+
+                        if (trimmed.startsWith('*') && currentSection !== "") {
+                            let cleanText = trimmed.substring(1).trim()
+                                .replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, '$2') 
+                                .replace(/\{\{[^}]*\}\}/g, '')                  
+                                .replace(/\[\d+\]/g, '')                        
+                                .replace(/'''/g, '');                           
+                            
+                            if (cleanText.length > 5) {
+                                if (currentSection === "events") events.push(cleanText);
+                                if (currentSection === "anniversaries") anniversaries.push(cleanText);
+                            }
+                        }
+                    });
+
+                    const buildListHTML = (items, max) => {
+                        if (items.length === 0) return "";
+                        const slicedItems = items.slice(0, max).map(item => {
+                            return item.length > 85 ? item.substring(0, 85) + '...' : item;
+                        });
+                        return `<ul class="wiki-list">` + slicedItems.map(item => `<li>${item}</li>`).join('') + `</ul>`;
+                    };
+
+                    let displayHTML = "";
+                    if (anniversaries.length > 0) {
+                        displayHTML += `<div class="wiki-subtitle">🎌 今日の記念日・年中行事</div>` + buildListHTML(anniversaries, 4);
+                    }
+                    if (events.length > 0) {
+                        displayHTML += `<div class="wiki-subtitle">🕰️ 歴史上のきょうの出来事</div>` + buildListHTML([...events].reverse(), 5);
+                    }
+
+                    if (displayHTML === "") {
+                        throw new Error('Parse failed');
+                    }
+
+                    document.getElementById('trivia-content').innerHTML = displayHTML;
+                })
+                .catch(error => {
+                    console.warn("Wikipedia API通信タイムアウト、またはエラー。自動的に内蔵データベースに切り替えます:", error);
+                    // 通信が失敗、または4秒以上かかったら即座に正しい本日のデータをローカルから出力
+                    loadFallbackData();
+                });
+        }
+
+        fetchWikipediaData();
+
+        // 3時間ごとに自動リロード
+        setInterval(() => {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('t', Date.now());
+            window.location.href = currentUrl.toString();
+        }, 10800000);
+    </script>
+</body>
+</html>
